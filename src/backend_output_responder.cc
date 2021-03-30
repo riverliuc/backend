@@ -65,7 +65,8 @@ BackendOutputResponder::ProcessTensor(
   }
 
   size_t tensor_offset = 0;
-
+  
+  /* 为每个request准备response */
   for (size_t idx = 0; idx < responses_->size(); idx++) {
     auto& request = requests_[idx];
     auto& response = (*responses_)[idx];
@@ -81,6 +82,7 @@ BackendOutputResponder::ProcessTensor(
     }
 
     // Override shape to be correct for this response.
+    /* 获取当前request的真实batch_size，用于形成该request对应output的shape，从而计算该request对应output的数据大小 */
     if (max_batch_size_ != 0) {
       const char* name;
       TRITONBACKEND_RequestInputName(request, 0, &name);
@@ -92,24 +94,31 @@ BackendOutputResponder::ProcessTensor(
       batchn_shape[0] = shape[0];
     }
 
+    /* 当前request对应输出的数据大小 */
     const size_t tensor_byte_size = GetByteSize(datatype, batchn_shape);
 
     TRITONBACKEND_Output* response_output;
     if (response != nullptr) {
       uint32_t output_count;
       RESPOND_AND_SET_NULL_IF_ERROR(
+          /* 获取当前response所包含的output的数量 */
           &response, TRITONBACKEND_RequestOutputCount(request, &output_count));
       if (response != nullptr) {
+        /* 遍历该response所需的每个output */
         for (uint32_t output_idx = 0; output_idx < output_count; output_idx++) {
           const char* name;
+          /* 取得当前output的名称 */
           RESPOND_AND_SET_NULL_IF_ERROR(
               &response,
               TRITONBACKEND_RequestOutputName(request, output_idx, &name));
+          /* 根据目标output的名称找到当前正要处理的output */
           if ((response != nullptr) && (output_name == name)) {
+            /* 为当前目标output在response中创建output tensor对象 */
             RESPOND_AND_SET_NULL_IF_ERROR(
                 &response, TRITONBACKEND_ResponseOutput(
                                response, &response_output, name, datatype,
                                batchn_shape.data(), batchn_shape.size()));
+            /* 把输出buffer的内容拷贝到response中的buffer里 */
             if (response != nullptr) {
               need_sync_ |= SetFixedSizeOutputBuffer(
                   &response, response_output, output_name, tensor_byte_size,

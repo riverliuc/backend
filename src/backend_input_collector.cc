@@ -107,6 +107,7 @@ BackendInputCollector::ProcessTensor(
 
   size_t buffer_offset = 0;
 
+  /* 依次遍历所有request, 从每个request中提取输入数据 */
   for (size_t idx = 0; idx < request_count_; idx++) {
     auto& request = requests_[idx];
     auto& response = (*responses_)[idx];
@@ -123,13 +124,16 @@ BackendInputCollector::ProcessTensor(
     }
 
     TRITONBACKEND_Input* input;
+    /* 从request中获取当前目标input */
     RESPOND_AND_SET_NULL_IF_ERROR(
         &response, TRITONBACKEND_RequestInput(request, input_name, &input));
     uint64_t byte_size;
+    /* 获取目标input的数据大小 */
     RESPOND_AND_SET_NULL_IF_ERROR(
         &response,
         TRITONBACKEND_InputProperties(
             input, nullptr, nullptr, nullptr, nullptr, &byte_size, nullptr));
+    /* 把当前request中的目标input的输入数据读到大的input buffer中 */
     if (response != nullptr) {
       need_sync_ |= SetFixedSizeInputTensor(
           input, buffer_offset, buffer, buffer_byte_size, memory_type,
